@@ -1,0 +1,26 @@
+# Node build output
+/node_modules/
+/dist/
+/coverage/
+/artifacts/
+
+# Local scan output and logs
+/reports/
+/logs/
+*.scan.json
+*.plan.json
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.token
+
+# Editors and OS files
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

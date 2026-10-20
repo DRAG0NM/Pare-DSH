@@ -1,20 +1,23 @@
 # Pare-DSH 开发计划
 
-> 当前为实施路线草案。插件实现依赖 Pare Core 的稳定 CLI schema 和 DSH 接入能力核验。
+> 阶段 0 已核实官方 DSH 工具插件接口；阶段 1 的只读 `disk_scan` 原型已完成本地验证。计划预览生成和写工具仍未实现。
 
-## 阶段 0：宿主和接口核验
+## 阶段 0：宿主和接口核验（已完成）
 
-- 取得 DSH 官方 SDK/插件文档，记录工具注册、stdio/sidecar、权限与审批能力。
-- 从 Pare 仓库选定 `pare.scan/1` 与 `pare.plan/1` 的正式输入输出 schema。
-- 明确插件允许的核心二进制分发方式。
-- 验收：有可执行的最小 host fixture；不再以未验证的 SDK 能力作为设计前提。
+- 宿主确认为 DeepSeek Harness。官方工具扩展采用 Cordis 插件的 `apply(ctx)`、`inject: ['tools']` 和 `@deepseek-ai/dsh-tools` 的 `defineTool`/`ctx.tools.register()`。
+- 官方包文档使用 `dsh.bundle.patch` 声明插件层，通过 `dsh plugin --profile <name> add <package>` 安装。
+- 固定本轮验证目标为 Harness `0.2.1-rc.2`、Cordis `4.0.5`、Node.js `>=22.19.0`；Harness 仍处于 developer preview，升级需重新验证。
+- Pare Core 已有 `pare.scan/1`；`pare.plan/1` 尚不存在，因此只实现扫描工具，不注册计划工具。
+- 源码安装时由用户提供 Core 可执行文件路径；插件不在线下载核心程序。
+- 官方参考：<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/index.md>、<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/tool.md>、<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md>。
 
-## 阶段 1：只读插件原型
+## 阶段 1：只读插件原型（已完成基础纵切片）
 
-- 建立最小插件包和 `disk_scan`、`disk_plan` 两个只读工具。
-- 以参数数组启动固定路径的 Pare CLI，设置超时、取消和输出上限。
-- 校验 schema、版本和退出码，返回摘要及本地报告引用。
-- 验收：无核心、版本不符、非法 JSON、部分失败和超时都有可辨识响应；不接受任意路径或命令。
+- 已实现 `disk_scan`：目录路径作为参数单独传给 Core，shell 关闭；超时/取消会终止子进程。
+- 报告限制为 64 MiB，校验 schema、节点种类、十进制字节数和错误代码；大整数以 BigInt 汇总。
+- 返回计数和本地报告位置，不回传路径清单；退出码 3 会返回不完整报告摘要。
+- 尚未实现 `disk_plan`：等待 Core 提供正式计划 schema。
+- 已验证摘要和子进程边界测试；仍需在支持版本的真实 DSH host profile 中完成端到端测试。
 
 ## 阶段 2：固定核心分发
 

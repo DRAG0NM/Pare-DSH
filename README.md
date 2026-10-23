@@ -1,57 +1,52 @@
 # Pare-DSH
 
-**让 Agent 读懂磁盘报告；清理动作仍由用户掌控。**
+Pare-DSH 给 DeepSeek Harness 增加一个只读磁盘扫描工具。扫描交给独立的 Pare Core 执行；插件不复制扫描实现，也没有清理行为。
 
-Pare-DSH 是 DRAG0NM 的 Agent 插件项目，目标是把 Pare Core 的扫描和计划能力接入 DSH。仓库目前处于设计阶段；DSH 的 SDK、工具注册格式和审批接口尚未在本仓库验证，暂无可运行插件。
+## 能力范围
 
-## 设计原则
+`disk_scan` 接收一个 Windows 目录路径，通过参数数组运行 `pare scan`，校验 `pare.scan/1` 报告后返回摘要。完整报告保存在本地目录，不把目录清单和文件路径带入对话。
 
-- 插件只编排 Pare Core，不自行实现文件扫描、规则匹配或删除逻辑。
-- 首版工具只提供扫描和计划预览；执行能力要等宿主审批接口通过验证后再开放。
-- Agent 只能引用 Pare 生成的 plan ID，不把模型输出的任意路径传给执行器。
-- 核心程序采用固定版本并校验摘要；不在运行时下载“最新版本”。
-- 工具返回有范围的摘要和本地结果位置，避免把整份目录清单灌入对话。
+这个版本不生成清理计划。Pare Core 还没有计划 schema，也没有 apply 或 undo 工具。
 
-## 数据流
+## 环境要求
 
-```mermaid
-flowchart LR
-    Host[DSH host] --> Plugin[Pare-DSH adapter]
-    Plugin -->|structured request| Core[Pare Core CLI]
-    Core --> Scan[scan report]
-    Core --> Plan[reviewable plan]
-    Plugin -->|summary and result reference| Host
-    Host --> Approval[host approval, when supported]
-    Approval -. gated future call .-> Core
+- Windows 和可运行的 Pare Core 程序。
+- Node.js 22.19 或更新版本。
+- DeepSeek Harness `0.2.1-rc.2`，Cordis `4.0.5`。
+
+Harness 目前仍是 developer preview，接口可能发生不兼容变化。Pare-DSH 将 peer 版本固定在本次验证过的工具接口；升级前需先对新版本重新做兼容测试。
+
+## 本地安装
+
+```powershell
+pnpm install
+pnpm test
+pnpm check
+dsh plugin --profile web add .
 ```
 
-接口契约、威胁边界和宿主接入检查见 [设计稿](docs/design.md)。
+启动 DSH 前，将 `PARE_CORE_PATH` 设为 `pare.exe` 的绝对路径，或在插件配置中填写 `parePath`。报告默认写入 `%LOCALAPPDATA%\Pare\Reports`；若系统未设置 `LOCALAPPDATA`，则使用系统临时目录。也可以通过 `reportDirectory` 指定报告目录。
 
-## 工具范围
+插件入口在 [cordis.patch.yml](cordis.patch.yml) 中声明，工具按官方 `defineTool` 接口注册。`@deepseek-ai/dsh-tools` 保持为宿主 peer，避免在 profile 中再加载一份工具注册包。
 
-| 工具 | 首版 | 行为 |
-|---|---:|---|
-| `disk_scan` | 规划中 | 运行只读扫描并返回摘要、缺口和结果位置 |
-| `disk_plan` | 规划中 | 对扫描结果生成逐文件清理计划，不执行计划 |
-| `disk_apply` | 关闭 | 宿主审批语义未验证前不得注册 |
-| `disk_undo` | 关闭 | 撤回同样属于写操作，需独立审批和验证 |
+依赖版本和许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## 安全
+## 本地验证
 
-Pare-DSH 不向子进程传入模型构造的 shell 命令。插件检查核心程序版本和文件摘要，设置超时并限制输出大小。路径可能暴露用户目录信息；返回值默认摘要化，完整报告保存在本机。审批接口无法验证、核心版本不匹配或计划状态过期时，插件拒绝执行。
+```powershell
+pnpm test
+pnpm check
+```
 
-## 开发状态
+测试覆盖报告校验、摘要隐私、退出码和子进程参数边界。当前尚未在完整的 DSH profile 中启动宿主；发布前还需完成这项集成验证。
 
-| 项目 | 状态 |
-|---|---|
-| Pare Core CLI 契约 | 与 Pare 设计同步，未实现 |
-| DSH SDK 与审批接口核验 | 未完成 |
-| 只读工具 | 未实现 |
-| 写工具 | 明确关闭 |
-| 发布与安装流程 | 未设计完成 |
+## 项目说明
 
-开发步骤见 [开发计划](docs/development-plan.md)。
+Pare-DSH 由 DRAG0NM 以个人项目维护，通过 [Pare Core](https://github.com/DRAG0NM/Pare) 提供扫描能力，不复制核心实现。项目许可证尚未确定。
 
-## 关系与来源
+## DSH 官方资料
 
-Pare Core 由 [Pare](https://github.com/DRAG0NM/Pare) 仓库维护。插件通过版本化命令行接口调用核心，不把核心源码复制进本仓库。第三方 SDK 和依赖将在接入时按固定版本记录许可与来源。项目许可证尚未确定；仓库当前为私有。
+- [Official Harness repository and release status](https://github.com/deepseek-ai/deepseek-harness)
+- [Official first-plugin guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/index.md)
+- [Official tool authoring guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/tool.md)
+- [Official plugin packaging guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md)

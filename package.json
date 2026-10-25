@@ -1,17 +1,17 @@
 {
   "name": "@drag0nm/pare-dsh",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "type": "module",
-  "description": "Read-only Pare scan tools for DeepSeek Harness",
+  "description": "Pare disk investigation and reversible cleanup tools for DeepSeek Harness",
   "main": "src/plugin.js",
   "exports": {
     ".": "./src/plugin.js"
   },
   "scripts": {
     "test": "node --test src/*.test.js",
-    "check": "node --check src/plugin.js && node --check src/scan.js && node --check src/report.js && node --test src/*.test.js"
+    "check": "node --check src/plugin.js && node --check src/core.js && node --check src/format.js && node --test src/*.test.js"
   },
   "engines": {
     "node": ">=22.19.0"

@@ -73,7 +73,7 @@ dsh plugin --profile web add .
 
 开发时可以用 `parePath` 配置或环境变量 `PARE_CORE_PATH` 指向自己构建的 `pare.exe`（`go build -o pare.exe ./cmd/pare`）。此时不做哈希校验，只检查协议名。
 
-当前状态：Pare v0.4.0 尚未发布，它将与正在进行的桌面界面更新一起发布。在此之前自动下载会返回 404；本地测试时请把对应版本的二进制放到 `core\pare-0.4.0.exe`，或设置 `parePath`。
+当前状态：Pare v0.4.0 已发布，首次启动会自动从发布页下载固定版本的核心并校验。离线环境可以把同一个文件（SHA-256 一致）放到 `core\pare-0.4.0.exe`，或设置 `parePath`。
 
 插件入口在 [cordis.patch.yml](cordis.patch.yml) 中声明，工具按官方 `defineTool` 接口注册。`@deepseek-ai/dsh-tools` 保持为宿主 peer，避免在 profile 中再加载一份工具注册包。
 

@@ -1,6 +1,6 @@
 # Pare-DSH 开发计划
 
-> 阶段 0 已核实官方 DSH 工具插件接口；插件 v0.2.0 已改用常驻 `pare serve`（协议 `pare.serve/1`），实现只读调查和带审批的写工具（阶段 1、4）。固定核心分发尚未实现；真实 DSH 端到端验证已完成。
+> 阶段 0 已核实官方 DSH 工具插件接口；插件 v0.2.0 已改用常驻 `pare serve`（协议 `pare.serve/1`），实现只读调查和带审批的写工具（阶段 1、4）。固定核心分发（插件 v0.3.0，下载加 SHA-256 校验）已实现，仅差 Pare v0.4.0 的发布；真实 DSH 端到端验证已完成。
 
 ## 阶段 0：宿主和接口核验（已完成）
 
@@ -8,7 +8,7 @@
 - 官方包文档使用 `dsh.bundle.patch` 声明插件层，通过 `dsh plugin --profile <name> add <package>` 安装。
 - 固定本轮验证目标为 Harness `0.2.1-rc.2`、Cordis `4.0.5`、Node.js `>=22.19.0`；Harness 仍处于 developer preview，升级需重新验证。
 - Pare Core 已有 `pare.scan/1`；`pare.plan/1` 尚不存在，因此只实现扫描工具，不注册计划工具。
-- 源码安装时由用户提供 Core 可执行文件路径；插件不在线下载核心程序。
+- 当时的决定：源码安装时由用户提供 Core 可执行文件路径，插件不在线下载核心程序。（已由阶段 2 取代：插件 v0.3.0 起按固定版本和 SHA-256 自动下载核心。）
 - 官方参考：<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/index.md>、<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/tool.md>、<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md>。
 
 ## 阶段 1：只读插件原型（已完成，已被 `pare serve` 取代）
@@ -19,11 +19,12 @@
 - 尚未实现 `disk_plan`：等待 Core 提供正式计划 schema。
 - 已验证摘要和子进程边界测试；仍需在支持版本的真实 DSH host profile 中完成端到端测试。
 
-## 阶段 2：固定核心分发（未完成）
+## 阶段 2：固定核心分发（已完成，Pare v0.4.0 的发布除外）
 
-- 现状：用户用 `PARE_CORE_PATH` 或 `parePath` 指向自己构建的 `pare.exe`（`go build -o pare.exe ./cmd/pare`）；插件只检查 `hello` 返回的协议名 `pare.serve/1`。
-- 待做：选择随包附带或固定版本下载方案；加入 SHA-256 校验、核心版本兼容范围和可重复发布流程。
-- 验收：核心文件被改动或版本不兼容时，插件拒绝执行；安装不携带用户扫描数据。
+- 已完成：插件 v0.3.0 固定使用 Pare 核心 0.4.0。`package.json` 的 `pareCore` 记录版本、下载地址（`DRAG0NM/Pare` v0.4.0 发布资产 `pare-0.4.0-win-x64.exe`）和 SHA-256 `23a09ed98b24642e80c1ee83d8a7464e6fa0df2ac1a1d6e078cd5882672001fb`。
+- 首次启动下载到插件目录 `core\pare-0.4.0.exe`（`curl.exe`，失败再用 PowerShell），校验通过才保留；每次启动和每次启动核心进程前再次校验，被改动的文件被拒绝；`hello` 版本必须等于固定版本。`parePath`、`PARE_CORE_PATH` 仍可覆盖，供开发使用。
+- 已验证：12 个单元测试覆盖固定信息格式、只下载一次、哈希错误丢弃、文件被改动拒绝、版本强制；本地 HTTP 测试下载并校验了真实二进制，并拒绝了错误文件和 404；真实 DSH 0.2.1-rc.2 web 会话不设置 `parePath`，用固定核心完成 `pare_scan` 和 `pare_scan_overview`。
+- 待做（维护者）：发布 Pare v0.4.0（将与正在进行的桌面界面更新一起发布）。发布时必须上传与上述 SHA-256 完全一致的那个二进制，不能重新构建；该文件保存在 `D:\Stranger_things\Pareuild\core-pinned\`。在发布之前自动下载返回 404，本地测试请把二进制放到 `core\pare-0.4.0.exe` 或设置 `parePath`。
 
 ## 阶段 3：宿主集成和隐私审查（进行中）
 

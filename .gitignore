@@ -24,3 +24,6 @@
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Pinned Pare core, downloaded and hash-checked by the plugin on first start
+/core/

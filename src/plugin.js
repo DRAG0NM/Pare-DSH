@@ -2,12 +2,15 @@ import Schema from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 import { PareCore, hello } from './core.js'
+import { PINNED, ensureCore, verifyCore } from './corefile.js'
 import { batchesText, executeReason, executeText, previewText, purgeReason, scanText, sensitiveReason, toParameters, undoReason } from './format.js'
 
 export const name = '@drag0nm/pare-dsh'
 export const inject = ['tools']
 
 export const Config = Schema.object({
+  // Empty: use the pinned core shipped with this plugin version (downloaded and
+  // hash-checked on first start). Set it only to run a core you built yourself.
   parePath: Schema.string().default(process.env.PARE_CORE_PATH ?? ''),
   timeoutMs: Schema.number().default(600000),
 })
@@ -18,11 +21,25 @@ export const GATED = new Set(['pare_execute', 'pare_undo', 'pare_purge', 'pare_r
 const text = { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }
 
 export function apply(ctx, config, deps = {}) {
-  const corePath = config.parePath
-  const core = deps.core ?? new PareCore(corePath)
+  // Without an override the plugin runs exactly the pinned core: the file must match
+  // the pinned SHA-256 before every start of the process, and report the pinned version.
+  let corePath = config.parePath
+  let pinned = null
+  let setupError = ''
+  if (!corePath && !deps.core) {
+    try {
+      corePath = (deps.ensureCore ?? ensureCore)()
+      pinned = deps.pinned ?? PINNED
+    } catch (error) {
+      setupError = error.message
+    }
+  }
+  const verify = pinned ? () => (deps.verifyCore ?? verifyCore)(corePath, pinned) : undefined
+  const core = deps.core ?? new PareCore(corePath, undefined, verify)
   const previews = new Map()
   const call = (method, params, exec, timeoutMs = config.timeoutMs) => {
-    if (!corePath && !deps.core) throw new Error('Set parePath in the Pare-DSH plugin settings or PARE_CORE_PATH to the absolute path of pare.exe')
+    if (setupError) throw new Error(`Pare core is not available: ${setupError}`)
+    if (!corePath && !deps.core) throw new Error('Pare core is not available: set parePath or PARE_CORE_PATH to the absolute path of pare.exe')
     return core.request(method, params, { signal: exec.signal, timeoutMs })
   }
   ctx.on?.('dispose', () => core.close())
@@ -78,8 +95,13 @@ export function apply(ctx, config, deps = {}) {
   // match its version.
   let info = { tools: [], templates: [] }
   try {
-    info = deps.info ?? (corePath ? hello(corePath) : info)
+    info = deps.info ?? (corePath && !setupError ? hello(corePath) : info)
+    if (pinned && info.version !== pinned.version) {
+      throw new Error(`the core reports version ${info.version || 'unknown'}, but this plugin is pinned to ${pinned.version}`)
+    }
   } catch (error) {
+    if (pinned) setupError = error.message
+    info = { tools: [], templates: [] }
     ctx.logger?.('pare-dsh')?.warn?.(error.message)
   }
   const tools = info.tools ?? []

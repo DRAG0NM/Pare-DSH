@@ -32,9 +32,11 @@ export function hello(corePath, run = execFileSync) {
  * and restarted only after it exits (a restart needs a new scan).
  */
 export class PareCore {
-  constructor(corePath, spawnFn = spawn) {
+  constructor(corePath, spawnFn = spawn, verify) {
     this.corePath = corePath
-    this.spawn = spawnFn
+    this.spawn = spawnFn ?? spawn
+    // verify runs before every process start and throws to refuse a changed core.
+    this.verify = verify
     this.child = null
     this.nextId = 1
     this.pending = new Map()
@@ -42,6 +44,7 @@ export class PareCore {
 
   start() {
     if (this.child) return
+    this.verify?.()
     const child = this.spawn(this.corePath, ['serve'], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
     this.child = child
     const lines = createInterface({ input: child.stdout })
@@ -81,7 +84,11 @@ export class PareCore {
    * core cannot interrupt a running scan or move; the next call starts a new one.
    */
   request(method, params = {}, { signal, timeoutMs = 600000 } = {}) {
-    this.start()
+    try {
+      this.start()
+    } catch (error) {
+      return Promise.reject(error)
+    }
     const id = this.nextId++
     return new Promise((resolve, reject) => {
       const stop = (reason) => {

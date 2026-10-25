@@ -1,10 +1,10 @@
 # Pare-DSH
 
-Pare-DSH（v0.2.0）让 DeepSeek Harness（DSH）里的 AI 调查这台电脑上的磁盘浪费，并在用户逐次批准后做可撤回的清理。扫描、调查和清理都由独立的 Pare 核心完成；插件不复制核心的实现，只负责启动核心、注册工具和发起审批。
+Pare-DSH（v0.3.0）让 DeepSeek Harness（DSH）里的 AI 调查这台电脑上的磁盘浪费，并在用户逐次批准后做可撤回的清理。扫描、调查和清理都由独立的 Pare 核心完成；插件不复制核心的实现，只负责启动核心、注册工具和发起审批。
 
 ## 能力范围
 
-插件启动一个常驻的 `pare serve` 进程（核心 v0.3.0，协议 `pare.serve/1`，通过标准输入输出收发按行分隔的 JSON），并在 DSH 0.2.1-rc.2 中注册下列工具。扫描索引保存在这个进程里，所以调查类工具要先调用 `pare_scan`。
+插件启动一个常驻的 `pare serve` 进程（固定使用核心 v0.4.0，协议 `pare.serve/1`，通过标准输入输出收发按行分隔的 JSON），并在 DSH 0.2.1-rc.2 中注册下列工具。扫描索引保存在这个进程里，所以调查类工具要先调用 `pare_scan`。
 
 | 工具 | 作用 | 需要用户批准 |
 |---|---|:---:|
@@ -44,7 +44,7 @@ Pare-DSH（v0.2.0）让 DeepSeek Harness（DSH）里的 AI 调查这台电脑上
 - Windows。
 - Node.js 22.19 或更新版本。
 - DeepSeek Harness `0.2.1-rc.2`，Cordis `4.0.5`。
-- 支持 `pare serve` 的 Pare 核心（v0.3.0 起），用核心仓库构建：`go build -o pare.exe ./cmd/pare`。
+- Pare 核心：插件固定使用 v0.4.0，首次启动时自动下载（见下节），不需要自己构建。联网下载需要能访问 GitHub。
 
 Harness 目前仍是 developer preview，接口可能发生不兼容变化。Pare-DSH 将 peer 版本固定在本次验证过的工具接口；升级前需先对新版本重新做兼容测试。
 
@@ -57,7 +57,23 @@ pnpm check
 dsh plugin --profile web add .
 ```
 
-启动 DSH 前，将环境变量 `PARE_CORE_PATH` 设为 `pare.exe` 的绝对路径，或在插件配置中填写 `parePath`。`timeoutMs` 是单次调用的超时，默认 600000（毫秒）。旧版的 `reportDirectory` 选项和 `disk_scan` 工具已经移除。
+安装时不需要设置 `parePath`。`timeoutMs` 是单次调用的超时，默认 600000（毫秒）。旧版的 `reportDirectory` 选项和 `disk_scan` 工具已经移除。
+
+## Pare 核心的获取
+
+`package.json` 的 `pareCore` 固定了插件 v0.3.0 使用的核心：版本 0.4.0、下载地址（GitHub `DRAG0NM/Pare` 的 v0.4.0 发布资产 `pare-0.4.0-win-x64.exe`）和 SHA-256 `23a09ed98b24642e80c1ee83d8a7464e6fa0df2ac1a1d6e078cd5882672001fb`。
+
+未设置 `parePath` 和 `PARE_CORE_PATH` 时：
+
+- 插件启动时使用插件目录下的 `core\pare-0.4.0.exe`。文件不存在就按固定地址下载：先用 System32 里的 `curl.exe`（遵循 `HTTPS_PROXY`），失败再用 PowerShell 的 `Invoke-WebRequest`（使用 Windows 系统代理）。
+- 下载完成后校验 SHA-256，匹配才保留；不匹配的下载文件会被删除。
+- 之后每次启动，以及每次启动核心进程之前，都会再次校验哈希。文件被改动时插件拒绝运行（不会自动替换），错误信息会提示删除该文件以重新下载。
+- `hello` 返回的版本必须等于固定版本，否则插件拒绝使用，不注册任何调查工具。
+- `core` 目录已在 `.gitignore` 中。
+
+开发时可以用 `parePath` 配置或环境变量 `PARE_CORE_PATH` 指向自己构建的 `pare.exe`（`go build -o pare.exe ./cmd/pare`）。此时不做哈希校验，只检查协议名。
+
+当前状态：Pare v0.4.0 尚未发布，它将与正在进行的桌面界面更新一起发布。在此之前自动下载会返回 404；本地测试时请把对应版本的二进制放到 `core\pare-0.4.0.exe`，或设置 `parePath`。
 
 插件入口在 [cordis.patch.yml](cordis.patch.yml) 中声明，工具按官方 `defineTool` 接口注册。`@deepseek-ai/dsh-tools` 保持为宿主 peer，避免在 profile 中再加载一份工具注册包。
 
@@ -70,7 +86,9 @@ pnpm test
 pnpm check
 ```
 
-单元测试使用模拟宿主和模拟核心，覆盖协议、工具注册、审批返回值和结果文本。端到端验证（真实 DSH 加真实核心）：2026-10-25 在 DSH 0.2.1-rc.2（web，DeepSeek-V4.1-Flash）加 Pare 核心 0.3.0 上完成：pare_scan、pare_list_dir、pare_prepare_cleanup 正常；pare_execute 弹出审批，内容是插件保存的具体路径；点「拒绝」后调用被拒、文件未动；点「允许一次」后移入隔离区；pare_undo 审批后原样恢复；重新扫描后旧方案失效，新方案执行后 pare_purge 审批并永久删除，释放量与可用空间变化一致（3,145,728 字节）。
+单元测试使用模拟宿主和模拟核心，覆盖协议、工具注册、审批返回值和结果文本。固定核心的验证：单元测试（12 个）覆盖固定信息格式、只下载一次、哈希错误时丢弃、文件被改动时拒绝、版本强制；本地 HTTP 测试下载并校验了真实二进制，并拒绝了错误文件和 404；在真实 DSH 0.2.1-rc.2（web）会话中不设置 `parePath`，用固定核心完成了 `pare_scan` 和 `pare_scan_overview`。
+
+端到端验证（真实 DSH 加真实核心）：2026-10-25 在 DSH 0.2.1-rc.2（web，DeepSeek-V4.1-Flash）加 Pare 核心 0.3.0 上完成：pare_scan、pare_list_dir、pare_prepare_cleanup 正常；pare_execute 弹出审批，内容是插件保存的具体路径；点「拒绝」后调用被拒、文件未动；点「允许一次」后移入隔离区；pare_undo 审批后原样恢复；重新扫描后旧方案失效，新方案执行后 pare_purge 审批并永久删除，释放量与可用空间变化一致（3,145,728 字节）。
 
 ## 项目说明
 

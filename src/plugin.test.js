@@ -71,8 +71,21 @@ test('write tools ask the user with the stored plan; unknown ids are denied', as
   assert.equal((await ask('pare_execute', { id: 'abc' })).kind, 'deny')
 })
 
-test('a missing core path gives a clear error', async () => {
-  const registered = new Map()
-  apply({ tools: { register: (t) => registered.set(t.name, t) }, on() {} }, { parePath: '', timeoutMs: 1000 })
-  await assert.rejects(registered.get('pare_scan').execute({ root: 'C:\\' }, { signal: new AbortController().signal }), /parePath/)
+test('without an override the pinned core is used and its version is enforced', async () => {
+  const exec = { signal: new AbortController().signal }
+  const setup = (deps) => {
+    const registered = new Map()
+    apply({ tools: { register: (t) => registered.set(t.name, t) }, on() {} }, { parePath: '', timeoutMs: 1000 }, deps)
+    return registered
+  }
+  const failed = setup({ ensureCore: () => { throw new Error('downloaded Pare core 0.4.0 has SHA-256 x') } })
+  await assert.rejects(failed.get('pare_scan').execute({ root: 'C:\\' }, exec), /not available: downloaded Pare core/)
+
+  const pinned = { version: '0.4.0', url: 'u', sha256: 'a'.repeat(64) }
+  const wrong = setup({ ensureCore: () => 'C:\\core\\pare-0.4.0.exe', pinned, info: { version: '0.3.0', tools: [{ name: 'list_dir', description: 'd', parameters: {} }] } })
+  await assert.rejects(wrong.get('pare_scan').execute({ root: 'C:\\' }, exec), /pinned to 0\.4\.0/)
+  assert.equal(wrong.has('pare_list_dir'), false)
+
+  const right = setup({ ensureCore: () => 'C:\\core\\pare-0.4.0.exe', pinned, info: { version: '0.4.0', tools: [{ name: 'list_dir', description: 'd', parameters: {} }] } })
+  assert.ok(right.has('pare_list_dir'))
 })

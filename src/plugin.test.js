@@ -57,6 +57,8 @@ test('write tools ask the user with the stored plan; unknown ids are denied', as
   assert.match(decision.reason, /C:\\cache/)
   assert.doesNotMatch(decision.reason, /System32/)
   assert.match(decision.displayReason['zh-CN'], /无法撤回/)
+  // DSH's Chinese interface asks for the `zh` entry.
+  assert.equal(decision.displayReason.zh, decision.displayReason['zh-CN'])
 
   await registered.get('pare_execute').execute({ id: 'abc' }, exec)
   assert.deepEqual(calls.at(-1), ['execute', { id: 'abc', digest: 'sha256:1' }])

@@ -1,62 +1,107 @@
-# Pare-DSH
+<p align="center">
+  <img src="docs/images/en/banner.svg" alt="Pare-DSH — Pare's AI disk investigation inside DeepSeek Harness" width="100%">
+</p>
 
-Pare-DSH（v0.3.0）让 DeepSeek Harness（DSH）里的 AI 调查这台电脑上的磁盘浪费，并在用户逐次批准后做可撤回的清理。扫描、调查和清理都由独立的 Pare 核心完成；插件不复制核心的实现，只负责启动核心、注册工具和发起审批。
+<p align="center">
+  <b>English</b> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.fr.md">Français</a> · <a href="README.de.md">Deutsch</a>
+</p>
 
-## 能力范围
+<p align="center">
+  <img alt="npm" src="https://img.shields.io/npm/v/@drag0nm/pare-dsh?style=flat-square&color=3a3a3a&labelColor=1b1b1b">
+  <img alt="DeepSeek Harness" src="https://img.shields.io/badge/DeepSeek%20Harness-0.2.1--rc.2-3a3a3a?style=flat-square&labelColor=1b1b1b">
+  <img alt="Pare core" src="https://img.shields.io/badge/Pare%20core-0.4.0-3a3a3a?style=flat-square&labelColor=1b1b1b">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-3a3a3a?style=flat-square&labelColor=1b1b1b">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-3a3a3a?style=flat-square&labelColor=1b1b1b">
+</p>
 
-插件启动一个常驻的 `pare serve` 进程（固定使用核心 v0.4.0，协议 `pare.serve/1`，通过标准输入输出收发按行分隔的 JSON），并在 DSH 0.2.1-rc.2 中注册下列工具。扫描索引保存在这个进程里，所以调查类工具要先调用 `pare_scan`。
+Pare-DSH brings [Pare](https://github.com/DRAG0NM/Pare)'s AI disk investigation into DeepSeek Harness (DSH). The DSH agent investigates this machine's disk waste with Pare's read-only tools and prepares a cleanup. The scanning, investigation and cleanup are all done by the separate Pare core; the plugin only starts the core, registers the tools and asks for approval.
 
-| 工具 | 作用 | 需要用户批准 |
-|---|---|:---:|
-| `pare_scan` | 只读扫描一个盘或目录，在核心进程里保留索引 | 否 |
-| `pare_<name>` | 核心提供的只读调查工具，包括 `scan_overview`、`list_dir`、`find_large_files`、`same_size_files`、`breakdown`、`file_head`、`read_text`、`path_info`、`installed_programs`、`running_processes`、`run_diagnostic`。列表在插件启动时向核心询问（`hello`），随核心版本变化 | 否 |
-| `pare_read_sensitive` | 读取被 Pare 标为敏感的文件内容（密钥、`.env`、浏览器登录数据、凭据库） | 是，每次 |
-| `pare_prepare_cleanup` | 登记要移入隔离区的路径和受支持的动作模板，返回清理 id。此时不改动任何东西 | 否 |
-| `pare_execute` | 按 id 执行一份已准备的清理 | 是 |
-| `pare_list_quarantine` | 列出本地盘上的隔离批次及其内容 | 否 |
-| `pare_undo` | 把一个隔离批次恢复到原位置，不覆盖已占用原路径的文件 | 是 |
-| `pare_purge` | 永久删除一个隔离批次以释放空间，无法恢复 | 是 |
+Nothing changes until you approve it in DSH's own approval prompt, and files are moved into a reversible quarantine rather than deleted.
 
-插件不提供原始 shell 命令。DSH 自带的 bash 工具有它自己的审批。
+<p align="center">
+  <img src="docs/images/en/demo.gif" alt="A DSH session: scan, investigation, approval and cleanup report" width="100%">
+</p>
+<p align="center"><sub>Recorded in a real DSH session on a demo folder.</sub></p>
 
-## 审批与安全
-
-插件监听 DSH 的 `tools/pre-execute`，对 `pare_execute`、`pare_undo`、`pare_purge` 和 `pare_read_sensitive` 返回 `{kind: 'ask'}`。DSH 通过自己的审批服务询问用户：只有一次性的 `allowed-once` 才会放行；用户拒绝、取消，或没有可回答的一方时，调用一律被拒绝（失败即关闭）。每次询问都记入会话审计日志。
-
-- `pare_execute` 的审批提示由插件保存的预览生成，列出确切的路径和模板命令，不取自模型的描述。
-- 未知的清理 id 直接拒绝，不会弹出询问。一个清理 id 最多执行一次。
-
-核心一侧还有独立的保证，不依赖宿主：
-
-- 受保护的位置一律拒绝。
-- 每个条目都带 `BuildSelected` 生成的证据。
-- 执行器在移动每个文件之前，重新检查文件身份、是否被改动、是否被占用。
-- 动作模板经过校验；预览的 digest 必须匹配；预览 30 分钟后过期。
-- 执行开始前先把预览标记为已使用。
-- `undo` 和 `purge` 只接受 Pare 隔离区内的清单。
-
-隐私：调查工具会把路径和文件名返回给模型（以及它的服务商）。敏感文件的内容每次读取都要用户批准。
-
-取消一个正在运行的调用会停止核心进程；下一次调用会启动新进程，需要重新运行 `pare_scan`。
-
-## 环境要求
-
-- Windows。
-- Node.js 22.19 或更新版本。
-- DeepSeek Harness `0.2.1-rc.2`，Cordis `4.0.5`。
-- Pare 核心：插件固定使用 v0.4.0，首次启动时自动下载（见下节），不需要自己构建。联网下载需要能访问 GitHub。
-
-Harness 目前仍是 developer preview，接口可能发生不兼容变化。Pare-DSH 将 peer 版本固定在本次验证过的工具接口；升级前需先对新版本重新做兼容测试。
-
-## 安装
+## Install
 
 ```powershell
 dsh plugin --profile web add @drag0nm/pare-dsh
 ```
 
-重启该 profile 后生效（例如 `dsh web`）。安装时不需要设置 `parePath`，首次启动会自动下载并校验固定版本的 Pare 核心（见下文）。
+Restart the profile (for example `dsh web`). No configuration is needed. On first start the plugin downloads the pinned Pare core and verifies it (see [The pinned core](#the-pinned-core)).
 
-从源码安装：
+## A closer look
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/en/approval.png" alt="DSH approval prompt listing the exact files"><br><sub><b>Approval</b> — the prompt lists the exact files before anything moves.</sub></td>
+    <td width="50%"><img src="docs/images/en/result.png" alt="The agent's report after the cleanup"><br><sub><b>Result</b> — the agent's report after the cleanup, with what was kept and why.</sub></td>
+  </tr>
+</table>
+
+## Tools
+
+The plugin starts a long-lived `pare serve` process (protocol `pare.serve/1`, line-delimited JSON over stdio) and registers these tools. The scan index lives in that process, so run `pare_scan` before the investigation tools.
+
+| Tool | What it does | Needs approval |
+|---|---|:---:|
+| `pare_scan` | Read-only scan of a drive or folder; keeps the index in the core process | No |
+| `pare_scan_overview`, `pare_list_dir`, `pare_find_large_files`, `pare_same_size_files`, `pare_breakdown`, `pare_file_head`, `pare_read_text`, `pare_path_info`, `pare_installed_programs`, `pare_running_processes`, `pare_run_diagnostic` | Read-only investigation tools provided by the core. The list is requested from the core at startup (`hello`) and follows the core version | No |
+| `pare_read_sensitive` | Reads files Pare marks as sensitive (keys, `.env`, browser login data, credential stores) | Yes, every time |
+| `pare_prepare_cleanup` | Registers paths for quarantine and supported action templates, and returns a cleanup id. Nothing changes yet | No |
+| `pare_execute` | Executes a prepared cleanup by id | Yes |
+| `pare_list_quarantine` | Lists quarantine batches on local drives and their contents | No |
+| `pare_undo` | Restores a quarantine batch to its original location, never overwriting a file that has taken the original path | Yes |
+| `pare_purge` | Permanently deletes a quarantine batch to free space; cannot be undone | Yes |
+
+The plugin offers no raw shell commands. DSH's own bash tool has its own approval.
+
+## Approval and safety
+
+The plugin listens to DSH's `tools/pre-execute` and answers `{kind: 'ask'}` for `pare_execute`, `pare_undo`, `pare_purge` and `pare_read_sensitive`. DSH asks you through its own approval service. Only a one-time `allowed-once` lets the call through; if you reject, cancel, or nobody is available to answer, the call is denied (fail closed). Every question is recorded in the session audit log.
+
+- The approval prompt for `pare_execute` is built from the plan the plugin stored, listing the exact paths and template commands. It is not taken from the model's description.
+- Unknown, expired and pre-rescan cleanup ids are denied without asking. A cleanup id can be executed at most once.
+- Cancelling a running call stops the core process; the next call starts a new one, and `pare_scan` must be run again.
+
+The core enforces its own checks, independent of the host:
+
+- Protected locations are always refused.
+- Every item carries evidence produced by `BuildSelected`.
+- Before each file is moved, the executor re-checks its identity, whether it changed, and whether it is in use.
+- Action templates are validated, the preview digest must match, and a preview expires after 30 minutes.
+- The preview is marked as used before execution starts.
+- `undo` and `purge` accept only manifests inside the Pare quarantine.
+
+Privacy: investigation tools return paths and file names to the model (and its provider). The contents of sensitive files require your approval on every read.
+
+## The pinned core
+
+The `pareCore` entry in `package.json` pins the core for this plugin version: version 0.4.0, the download URL (the `pare-0.4.0-win-x64.exe` asset of the `v0.4.0` release of `DRAG0NM/Pare`) and its SHA-256, `23a09ed98b24642e80c1ee83d8a7464e6fa0df2ac1a1d6e078cd5882672001fb`.
+
+When neither `parePath` nor `PARE_CORE_PATH` is set:
+
+- The plugin uses `%LOCALAPPDATA%\Pare\core\pare-0.4.0.exe`, stored per user outside the plugin directory so reinstalling or upgrading the plugin does not lose it. If the file is missing, it is downloaded from the pinned URL: first with `curl.exe` from System32 (which honors `HTTPS_PROXY`), then, if that fails, with PowerShell's `Invoke-WebRequest` (which uses the Windows system proxy).
+- The SHA-256 is verified after the download. The file is kept only if it matches; a mismatching download is deleted.
+- The hash is verified again on every start and before every core process start. If the file has been modified, the plugin refuses to run (it never replaces it automatically) and the error says to delete the file so it is downloaded again.
+- The version reported by `hello` must equal the pinned version; otherwise the plugin refuses it and registers no investigation tools.
+- On some machines `AppData\Local` is EFS-encrypted and a rename within the directory is rejected (EXDEV), or an antivirus briefly holds the file. The plugin retries for a few seconds, then falls back to copying and deleting the temporary file; the final file must pass the same hash check.
+
+For development, point `parePath` (plugin option) or the `PARE_CORE_PATH` environment variable at your own `pare.exe` (`go build -o pare.exe ./cmd/pare`). No hash check is done then; only the protocol name is checked.
+
+For offline machines, place the same file (matching SHA-256) at `%LOCALAPPDATA%\Pare\core\pare-0.4.0.exe`, or set `parePath`.
+
+`timeoutMs` is the per-call timeout, 600000 ms by default.
+
+## Requirements
+
+- Windows.
+- DeepSeek Harness `0.2.1-rc.2` (Cordis `4.0.5`). Harness is still a developer preview and its interfaces may change incompatibly; Pare-DSH pins the peer version to the tool interface it was verified against, so re-test before upgrading.
+- Node.js 22.19 or newer (DSH's own requirement).
+- Access to GitHub on first start, to download the pinned core.
+
+## Build from source
 
 ```powershell
 pnpm install
@@ -64,44 +109,13 @@ pnpm check
 dsh plugin --profile web add .
 ```
 
-`timeoutMs` 是单次调用的超时，默认 600000（毫秒）。旧版的 `reportDirectory` 选项和 `disk_scan` 工具已经移除。
+Verified end to end in DSH 0.2.1-rc.2, including reject, allow, undo and purge, and installing from npm.
 
-## Pare 核心的获取
+## License
 
-`package.json` 的 `pareCore` 固定了插件 v0.3.0 使用的核心：版本 0.4.0、下载地址（GitHub `DRAG0NM/Pare` 的 v0.4.0 发布资产 `pare-0.4.0-win-x64.exe`）和 SHA-256 `23a09ed98b24642e80c1ee83d8a7464e6fa0df2ac1a1d6e078cd5882672001fb`。
+MIT, see [LICENSE](LICENSE). Dependency notes are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The core is [Pare](https://github.com/DRAG0NM/Pare), also MIT.
 
-未设置 `parePath` 和 `PARE_CORE_PATH` 时：
-
-- 插件启动时使用 `%LOCALAPPDATA%\Pare\core\pare-0.4.0.exe`（按用户保存在插件目录之外，重装或升级插件不会丢失）。文件不存在就按固定地址下载：先用 System32 里的 `curl.exe`（遵循 `HTTPS_PROXY`），失败再用 PowerShell 的 `Invoke-WebRequest`（使用 Windows 系统代理）。
-- 下载完成后校验 SHA-256，匹配才保留；不匹配的下载文件会被删除。
-- 之后每次启动，以及每次启动核心进程之前，都会再次校验哈希。文件被改动时插件拒绝运行（不会自动替换），错误信息会提示删除该文件以重新下载。
-- `hello` 返回的版本必须等于固定版本，否则插件拒绝使用，不注册任何调查工具。
-- 某些机器上 `AppData\Local` 启用了 EFS 加密，同目录内的重命名会被拒绝（EXDEV）；文件被杀毒软件短暂占用时也会拒绝。插件会重试几秒，仍不行就改为复制后删除临时文件，最终文件同样要通过哈希校验。
-
-开发时可以用 `parePath` 配置或环境变量 `PARE_CORE_PATH` 指向自己构建的 `pare.exe`（`go build -o pare.exe ./cmd/pare`）。此时不做哈希校验，只检查协议名。
-
-当前状态：Pare v0.4.0 已发布，首次启动会自动从发布页下载固定版本的核心并校验。离线环境可以把同一个文件（SHA-256 一致）放到 `%LOCALAPPDATA%\Pare\core\pare-0.4.0.exe`，或设置 `parePath`。
-
-插件入口在 [cordis.patch.yml](cordis.patch.yml) 中声明，工具按官方 `defineTool` 接口注册。`@deepseek-ai/dsh-tools` 保持为宿主 peer，避免在 profile 中再加载一份工具注册包。
-
-依赖版本和许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-## 本地验证
-
-```powershell
-pnpm test
-pnpm check
-```
-
-单元测试使用模拟宿主和模拟核心，覆盖协议、工具注册、审批返回值和结果文本。固定核心的验证：单元测试覆盖固定信息格式、只下载一次、哈希错误时丢弃、文件被改动时拒绝、版本强制、重命名被拒时改为复制；用 `pnpm pack` 打出的包通过 `dsh plugin --profile <测试 profile> add` 安装后，首次启动在 EFS 加密的 `%LOCALAPPDATA%` 中下载、校验并启用了核心，`pare_scan` 和 `pare_list_quarantine` 正常；本地 HTTP 测试下载并校验了真实二进制，并拒绝了错误文件和 404；在真实 DSH 0.2.1-rc.2（web）会话中不设置 `parePath`，用固定核心完成了 `pare_scan` 和 `pare_scan_overview`。
-
-端到端验证（真实 DSH 加真实核心）：2026-10-25 在 DSH 0.2.1-rc.2（web，DeepSeek-V4.1-Flash）加 Pare 核心 0.3.0 上完成：pare_scan、pare_list_dir、pare_prepare_cleanup 正常；pare_execute 弹出审批，内容是插件保存的具体路径；点「拒绝」后调用被拒、文件未动；点「允许一次」后移入隔离区；pare_undo 审批后原样恢复；重新扫描后旧方案失效，新方案执行后 pare_purge 审批并永久删除，释放量与可用空间变化一致（3,145,728 字节）。
-
-## 项目说明
-
-Pare-DSH 由 DRAG0NM 以个人项目维护，通过 [Pare 核心](https://github.com/DRAG0NM/Pare)提供全部磁盘能力。插件和核心都使用 MIT 许可证，见 [LICENSE](LICENSE)。
-
-## DSH 官方资料
+## Official DSH resources
 
 - [Official Harness repository and release status](https://github.com/deepseek-ai/deepseek-harness)
 - [Official first-plugin guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/index.md)

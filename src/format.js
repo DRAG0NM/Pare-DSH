@@ -88,6 +88,14 @@ export function batchesText(batches) {
 }
 
 /**
+ * Approval prompt texts. DSH picks the entry for its interface language, whose id is
+ * `zh` (not `zh-CN`), falling back to `en`; `zh-CN` is kept for other hosts.
+ */
+function bilingual(en, zh) {
+  return { en, zh, 'zh-CN': zh }
+}
+
+/**
  * Text of the approval prompt for an execution. It lists exactly what the stored
  * preview will do, so the user approves the content and not only an id.
  */
@@ -111,17 +119,17 @@ export function executeReason(p) {
     en.push(`Run (cannot be undone): ${a.steps.join(' && ')}`)
     zh.push(`运行（无法撤回）：${a.steps.join(' && ')}`)
   }
-  return { en: en.join('\n'), 'zh-CN': zh.join('\n') }
+  return bilingual(en.join('\n'), zh.join('\n'))
 }
 
 export function undoReason(manifest) {
-  return { en: `Pare will restore quarantine batch ${manifest} to the original locations.`, 'zh-CN': `Pare 将把隔离批次 ${manifest} 恢复到原位置。` }
+  return bilingual(`Pare will restore quarantine batch ${manifest} to the original locations.`, `Pare 将把隔离批次 ${manifest} 恢复到原位置。`)
 }
 
 export function purgeReason(manifest) {
-  return { en: `Pare will PERMANENTLY delete quarantine batch ${manifest}. This cannot be undone.`, 'zh-CN': `Pare 将永久删除隔离批次 ${manifest}，无法恢复。` }
+  return bilingual(`Pare will PERMANENTLY delete quarantine batch ${manifest}. This cannot be undone.`, `Pare 将永久删除隔离批次 ${manifest}，无法恢复。`)
 }
 
 export function sensitiveReason(path, why) {
-  return { en: `The AI wants to read a sensitive file: ${path}${why ? ` (${why})` : ''}. Its content will be sent to the model provider.`, 'zh-CN': `AI 想读取敏感文件：${path}${why ? `（${why}）` : ''}。内容会发送给模型服务商。` }
+  return bilingual(`The AI wants to read a sensitive file: ${path}${why ? ` (${why})` : ''}. Its content will be sent to the model provider.`, `AI 想读取敏感文件：${path}${why ? `（${why}）` : ''}。内容会发送给模型服务商。`)
 }

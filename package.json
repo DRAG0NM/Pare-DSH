@@ -1,10 +1,17 @@
 {
   "name": "@drag0nm/pare-dsh",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pare disk investigation and reversible cleanup tools for DeepSeek Harness",
   "license": "MIT",
   "author": "DRAG0NM",
-  "homepage": "https://github.com/DRAG0NM/Pare",
+  "homepage": "https://github.com/DRAG0NM/Pare-DSH#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DRAG0NM/Pare-DSH.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DRAG0NM/Pare-DSH/issues"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh",

@@ -1,13 +1,37 @@
 {
   "name": "@drag0nm/pare-dsh",
   "version": "0.3.0",
-  "private": true,
+  "description": "Pare disk investigation and reversible cleanup tools for DeepSeek Harness",
+  "license": "MIT",
+  "author": "DRAG0NM",
+  "homepage": "https://github.com/DRAG0NM/Pare",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "disk-cleanup",
+    "windows",
+    "pare"
+  ],
+  "os": [
+    "win32"
+  ],
   "packageManager": "pnpm@11.7.0",
   "type": "module",
-  "description": "Pare disk investigation and reversible cleanup tools for DeepSeek Harness",
   "main": "src/plugin.js",
   "exports": {
     ".": "./src/plugin.js"
+  },
+  "files": [
+    "src/*.js",
+    "!src/*.test.js",
+    "cordis.patch.yml",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "test": "node --test src/*.test.js",

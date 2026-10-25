@@ -22,7 +22,7 @@
 ## 阶段 2：固定核心分发（已完成，Pare v0.4.0 的发布除外）
 
 - 已完成：插件 v0.3.0 固定使用 Pare 核心 0.4.0。`package.json` 的 `pareCore` 记录版本、下载地址（`DRAG0NM/Pare` v0.4.0 发布资产 `pare-0.4.0-win-x64.exe`）和 SHA-256 `23a09ed98b24642e80c1ee83d8a7464e6fa0df2ac1a1d6e078cd5882672001fb`。
-- 首次启动下载到插件目录 `core\pare-0.4.0.exe`（`curl.exe`，失败再用 PowerShell），校验通过才保留；每次启动和每次启动核心进程前再次校验，被改动的文件被拒绝；`hello` 版本必须等于固定版本。`parePath`、`PARE_CORE_PATH` 仍可覆盖，供开发使用。
+- 首次启动下载到 `%LOCALAPPDATA%\Pare\core\pare-0.4.0.exe`（`curl.exe`，失败再用 PowerShell），校验通过才保留；每次启动和每次启动核心进程前再次校验，被改动的文件被拒绝；`hello` 版本必须等于固定版本。`parePath`、`PARE_CORE_PATH` 仍可覆盖，供开发使用。
 - 已验证：12 个单元测试覆盖固定信息格式、只下载一次、哈希错误丢弃、文件被改动拒绝、版本强制；本地 HTTP 测试下载并校验了真实二进制，并拒绝了错误文件和 404；真实 DSH 0.2.1-rc.2 web 会话不设置 `parePath`，用固定核心完成 `pare_scan` 和 `pare_scan_overview`。
 - 已完成：2026-10-25 Pare v0.4.0 已发布，GitHub 记录的 pare-0.4.0-win-x64.exe 摘要与固定值一致；插件的下载代码从发布地址下载并校验通过（5,659,136 字节，报告版本 0.4.0）。固定的二进制保存在 `D:\Stranger_things\Pare\build\core-pinned\`；以后升级核心版本时，同样要上传与插件固定值一致的文件，不能重新构建。
 

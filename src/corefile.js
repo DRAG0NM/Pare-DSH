@@ -1,16 +1,20 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
 /** The one Pare core release this plugin version runs: version, download URL, SHA-256. */
 export const PINNED = pkg.pareCore
 
-/** Where the plugin keeps its copy of the pinned core, next to its own files. */
-export const CORE_DIR = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'core')
+/**
+ * Where the plugin keeps the pinned core: per user, outside the plugin's own folder,
+ * so reinstalling or upgrading the plugin inside a DSH profile does not discard it.
+ * Each version has its own file name, so plugin versions pinned to different cores coexist.
+ */
+export const CORE_DIR = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'Pare', 'core')
 
 export function sha256File(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex')
@@ -56,10 +60,34 @@ export function ensureCore({ pinned = PINNED, dir = CORE_DIR, fetch = download }
       fs.rmSync(partial, { force: true })
       throw new Error(`downloaded Pare core ${pinned.version} has SHA-256 ${got}, expected ${pinned.sha256}; refusing to run it`)
     }
-    fs.renameSync(partial, file)
+    moveIntoPlace(partial, file)
   }
   verifyCore(file, pinned)
   return file
+}
+
+const MOVE_ATTEMPTS = 20
+const MOVE_WAIT_MS = 250
+
+/**
+ * Rename src to dest. Windows refuses some renames: EXDEV inside an EFS-encrypted
+ * AppData\Local (seen on the development machine), and EPERM/EBUSY while an antivirus
+ * scanner still holds a fresh .exe. EXDEV falls back to copy-and-delete; a lock is
+ * retried for a few seconds before also falling back to a copy.
+ */
+export function moveIntoPlace(src, dest, io = fs) {
+  for (let attempt = 0; attempt < MOVE_ATTEMPTS; attempt++) {
+    try {
+      io.renameSync(src, dest)
+      return
+    } catch (error) {
+      if (error.code === 'EXDEV') break
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) throw error
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, MOVE_WAIT_MS)
+    }
+  }
+  io.copyFileSync(src, dest)
+  io.rmSync(src, { force: true })
 }
 
 /** Refuse a core file whose content no longer matches the pin. */

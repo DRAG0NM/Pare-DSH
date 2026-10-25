@@ -50,7 +50,7 @@ Pare Core (separate repository and release)
 
 > 已实现（插件 v0.3.0）：不把二进制放进 git，而是首次启动时按固定地址下载并校验 SHA-256。`package.json` 的 `pareCore` 记录版本 0.4.0、下载地址（`DRAG0NM/Pare` v0.4.0 发布资产 `pare-0.4.0-win-x64.exe`）和 SHA-256。`parePath`、`PARE_CORE_PATH` 仍可覆盖固定版本，供开发使用（不做哈希校验，只检查协议名）。
 >
-> 未设置覆盖时，插件使用插件目录下的 `core\pare-<版本>.exe`；文件不存在则下载（先 System32 的 `curl.exe`，遵循 `HTTPS_PROXY`；失败再用 PowerShell `Invoke-WebRequest`，使用系统代理），校验通过才保留，不匹配即删除。每次启动和每次启动核心进程前再次校验；被改动的文件被拒绝而不是替换，提示删除后重新下载。`hello` 报告的版本必须等于固定版本，否则拒绝并且不注册调查工具。`core` 目录已加入 `.gitignore`。
+> 未设置覆盖时，插件使用 `%LOCALAPPDATA%\Pare\core\pare-<版本>.exe`；文件不存在则下载（先 System32 的 `curl.exe`，遵循 `HTTPS_PROXY`；失败再用 PowerShell `Invoke-WebRequest`，使用系统代理），校验通过才保留，不匹配即删除。每次启动和每次启动核心进程前再次校验；被改动的文件被拒绝而不是替换，提示删除后重新下载。`hello` 报告的版本必须等于固定版本，否则拒绝并且不注册调查工具。`core` 目录已加入 `.gitignore`。
 >
 > 2026-10-25 Pare v0.4.0 已发布，GitHub 记录的 pare-0.4.0-win-x64.exe 摘要与固定值一致；插件的下载代码从发布地址下载并校验通过（5,659,136 字节，报告版本 0.4.0）。
 

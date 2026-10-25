@@ -44,3 +44,29 @@ test('a core file changed after download is refused, not replaced', () => {
   assert.throws(() => ensureCore({ pinned, dir, fetch: () => assert.fail('must not download again') }), /was modified/)
   assert.equal(fs.readFileSync(file, 'utf8'), 'changed')
 })
+
+test('the pinned core lives per user, outside the plugin folder', async () => {
+  const { CORE_DIR } = await import('./corefile.js')
+  assert.ok(CORE_DIR.endsWith(path.join('Pare', 'core')))
+  assert.ok(!CORE_DIR.includes('Pare-DSH'))
+})
+
+test('a refused rename falls back to copy-and-delete', async () => {
+  const { moveIntoPlace } = await import('./corefile.js')
+  const dir = tempDir()
+  const src = path.join(dir, 'a.download')
+  const dest = path.join(dir, 'a.exe')
+  fs.writeFileSync(src, content)
+  const exdev = { ...fs, renameSync: () => { throw Object.assign(new Error('cross-device'), { code: 'EXDEV' }) } }
+  moveIntoPlace(src, dest, exdev)
+  assert.equal(fs.readFileSync(dest, 'utf8'), 'fake pare core')
+  assert.equal(fs.existsSync(src), false)
+
+  let tries = 0
+  fs.writeFileSync(src, content)
+  fs.rmSync(dest)
+  const busy = { ...fs, renameSync: (a, b) => (++tries < 3 ? (() => { throw Object.assign(new Error('busy'), { code: 'EBUSY' }) })() : fs.renameSync(a, b)) }
+  moveIntoPlace(src, dest, busy)
+  assert.equal(tries, 3)
+  assert.ok(fs.existsSync(dest))
+})

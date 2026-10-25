@@ -48,16 +48,23 @@ Pare-DSH（v0.3.0）让 DeepSeek Harness（DSH）里的 AI 调查这台电脑上
 
 Harness 目前仍是 developer preview，接口可能发生不兼容变化。Pare-DSH 将 peer 版本固定在本次验证过的工具接口；升级前需先对新版本重新做兼容测试。
 
-## 本地安装
+## 安装
+
+```powershell
+dsh plugin --profile web add @drag0nm/pare-dsh
+```
+
+重启该 profile 后生效（例如 `dsh web`）。安装时不需要设置 `parePath`，首次启动会自动下载并校验固定版本的 Pare 核心（见下文）。
+
+从源码安装：
 
 ```powershell
 pnpm install
-pnpm test
 pnpm check
 dsh plugin --profile web add .
 ```
 
-安装时不需要设置 `parePath`。`timeoutMs` 是单次调用的超时，默认 600000（毫秒）。旧版的 `reportDirectory` 选项和 `disk_scan` 工具已经移除。
+`timeoutMs` 是单次调用的超时，默认 600000（毫秒）。旧版的 `reportDirectory` 选项和 `disk_scan` 工具已经移除。
 
 ## Pare 核心的获取
 
@@ -65,15 +72,15 @@ dsh plugin --profile web add .
 
 未设置 `parePath` 和 `PARE_CORE_PATH` 时：
 
-- 插件启动时使用插件目录下的 `core\pare-0.4.0.exe`。文件不存在就按固定地址下载：先用 System32 里的 `curl.exe`（遵循 `HTTPS_PROXY`），失败再用 PowerShell 的 `Invoke-WebRequest`（使用 Windows 系统代理）。
+- 插件启动时使用 `%LOCALAPPDATA%\Pare\core\pare-0.4.0.exe`（按用户保存在插件目录之外，重装或升级插件不会丢失）。文件不存在就按固定地址下载：先用 System32 里的 `curl.exe`（遵循 `HTTPS_PROXY`），失败再用 PowerShell 的 `Invoke-WebRequest`（使用 Windows 系统代理）。
 - 下载完成后校验 SHA-256，匹配才保留；不匹配的下载文件会被删除。
 - 之后每次启动，以及每次启动核心进程之前，都会再次校验哈希。文件被改动时插件拒绝运行（不会自动替换），错误信息会提示删除该文件以重新下载。
 - `hello` 返回的版本必须等于固定版本，否则插件拒绝使用，不注册任何调查工具。
-- `core` 目录已在 `.gitignore` 中。
+- 某些机器上 `AppData\Local` 启用了 EFS 加密，同目录内的重命名会被拒绝（EXDEV）；文件被杀毒软件短暂占用时也会拒绝。插件会重试几秒，仍不行就改为复制后删除临时文件，最终文件同样要通过哈希校验。
 
 开发时可以用 `parePath` 配置或环境变量 `PARE_CORE_PATH` 指向自己构建的 `pare.exe`（`go build -o pare.exe ./cmd/pare`）。此时不做哈希校验，只检查协议名。
 
-当前状态：Pare v0.4.0 已发布，首次启动会自动从发布页下载固定版本的核心并校验。离线环境可以把同一个文件（SHA-256 一致）放到 `core\pare-0.4.0.exe`，或设置 `parePath`。
+当前状态：Pare v0.4.0 已发布，首次启动会自动从发布页下载固定版本的核心并校验。离线环境可以把同一个文件（SHA-256 一致）放到 `%LOCALAPPDATA%\Pare\core\pare-0.4.0.exe`，或设置 `parePath`。
 
 插件入口在 [cordis.patch.yml](cordis.patch.yml) 中声明，工具按官方 `defineTool` 接口注册。`@deepseek-ai/dsh-tools` 保持为宿主 peer，避免在 profile 中再加载一份工具注册包。
 
@@ -86,13 +93,13 @@ pnpm test
 pnpm check
 ```
 
-单元测试使用模拟宿主和模拟核心，覆盖协议、工具注册、审批返回值和结果文本。固定核心的验证：单元测试（12 个）覆盖固定信息格式、只下载一次、哈希错误时丢弃、文件被改动时拒绝、版本强制；本地 HTTP 测试下载并校验了真实二进制，并拒绝了错误文件和 404；在真实 DSH 0.2.1-rc.2（web）会话中不设置 `parePath`，用固定核心完成了 `pare_scan` 和 `pare_scan_overview`。
+单元测试使用模拟宿主和模拟核心，覆盖协议、工具注册、审批返回值和结果文本。固定核心的验证：单元测试覆盖固定信息格式、只下载一次、哈希错误时丢弃、文件被改动时拒绝、版本强制、重命名被拒时改为复制；用 `pnpm pack` 打出的包通过 `dsh plugin --profile <测试 profile> add` 安装后，首次启动在 EFS 加密的 `%LOCALAPPDATA%` 中下载、校验并启用了核心，`pare_scan` 和 `pare_list_quarantine` 正常；本地 HTTP 测试下载并校验了真实二进制，并拒绝了错误文件和 404；在真实 DSH 0.2.1-rc.2（web）会话中不设置 `parePath`，用固定核心完成了 `pare_scan` 和 `pare_scan_overview`。
 
 端到端验证（真实 DSH 加真实核心）：2026-10-25 在 DSH 0.2.1-rc.2（web，DeepSeek-V4.1-Flash）加 Pare 核心 0.3.0 上完成：pare_scan、pare_list_dir、pare_prepare_cleanup 正常；pare_execute 弹出审批，内容是插件保存的具体路径；点「拒绝」后调用被拒、文件未动；点「允许一次」后移入隔离区；pare_undo 审批后原样恢复；重新扫描后旧方案失效，新方案执行后 pare_purge 审批并永久删除，释放量与可用空间变化一致（3,145,728 字节）。
 
 ## 项目说明
 
-Pare-DSH 由 DRAG0NM 以个人项目维护，通过 [Pare 核心](https://github.com/DRAG0NM/Pare)提供全部磁盘能力。核心使用 MIT 许可证；插件自身的许可证尚未确定。
+Pare-DSH 由 DRAG0NM 以个人项目维护，通过 [Pare 核心](https://github.com/DRAG0NM/Pare)提供全部磁盘能力。插件和核心都使用 MIT 许可证，见 [LICENSE](LICENSE)。
 
 ## DSH 官方资料
 
